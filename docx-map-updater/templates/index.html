@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>docx-map-updater</title>
+<style>
+  :root {
+    --accent: #1B4F72;
+    --bg: #F8F9FA;
+    --border: #DEE2E6;
+    --muted: #6C757D;
+    --white: #FFFFFF;
+    --green: #28A745;
+    --red: #DC3545;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: #212529;
+  }
+  header {
+    background: var(--accent);
+    color: var(--white);
+    padding: 14px 24px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .zone {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .zone.drag-over {
+    border-color: var(--accent);
+    background: #EEF3F8;
+  }
+  .zone-label {
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .zone-hint {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+    word-break: break-word;
+  }
+  .zone-hint.filled { color: var(--accent); font-weight: 500; }
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .browse-btn {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 12px;
+  }
+  .browse-btn:hover { background: var(--bg); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .form-row label { width: 190px; font-size: 13px; }
+  .form-row input[type=text], .form-row input[type=number], .form-row select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .hint { color: var(--muted); font-size: 11px; font-style: italic; margin: 0 0 10px 200px; }
+  .caption-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .caption-row .cap-file { width: 220px; font-size: 12px; color: var(--muted); word-break: break-word; }
+  .caption-row input[type=text] {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .actions { margin: 16px 0; display: flex; gap: 10px; }
+  .btn-primary, .btn-secondary {
+    border: none;
+    border-radius: 4px;
+    padding: 9px 18px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .btn-primary { background: var(--accent); color: var(--white); }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.5; cursor: default; }
+  .btn-secondary { background: var(--white); color: var(--accent); border: 1px solid var(--accent); }
+  #results { background: var(--white); border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: none; }
+  #results h3 { margin-top: 0; color: var(--accent); font-size: 14px; }
+  .summary-grid { display: flex; gap: 18px; margin-bottom: 12px; flex-wrap: wrap; }
+  .summary-item { font-size: 13px; }
+  .summary-item .n { font-size: 20px; font-weight: 700; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+  .badge-low { background: #FFF3CD; color: #856404; }
+  .error-box { background: #FDECEA; border: 1px solid var(--red); color: var(--red); padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+  .download-row { display: flex; gap: 10px; margin-top: 8px; }
+  #log { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; margin-top: 10px; max-height: 140px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<header>docx-map-updater</header>
+<main>
+
+  <div class="zone" id="docxZone">
+    <div class="zone-label">Word report (.docx)</div>
+    <div class="zone-hint" id="docxHint">Drop a .docx file here, or Browse…</div>
+    <button class="browse-btn" id="docxBrowseBtn" type="button">Browse…</button>
+    <input type="file" id="docxInput" accept=".docx" style="display:none">
+  </div>
+
+  <div class="zone" id="imagesZone">
+    <div class="zone-label">Images folder</div>
+    <div class="zone-hint" id="imagesHint">Drop a folder of source images here, or Browse…</div>
+    <button class="browse-btn" id="imagesBrowseBtn" type="button">Browse…</button>
+    <input type="file" id="imagesInput" webkitdirectory multiple style="display:none">
+  </div>
+
+  <hr>
+
+  <div class="form-row">
+    <label for="heading">Section of the report to update:</label>
+    <select id="heading" disabled><option value="">Drop a report first…</option></select>
+  </div>
+  <div class="hint">Detected from the report's own headings — pick the exact section this run should touch.</div>
+
+  <div class="form-row">
+    <label for="prefix">Figure caption prefix:</label>
+    <input type="text" id="prefix" value="Figure">
+  </div>
+  <div class="hint">Captions are assumed to read like "Figure 12: description".</div>
+
+  <div class="form-row">
+    <label for="threshold">Match threshold (0-1):</label>
+    <input type="number" id="threshold" value="0.55" min="0" max="1" step="0.05">
+  </div>
+  <div class="hint">Minimum score to treat a file as a replacement rather than a new figure.</div>
+
+  <div class="form-row">
+    <label for="generalStyle">General caption style / notes:</label>
+    <input type="text" id="generalStyle" placeholder="optional — e.g. 2026 survey update">
+  </div>
+  <div class="hint">Applied when suggesting captions for brand-new figures. You'll get to review and edit every suggested caption before anything is written.</div>
+
+  <div class="actions">
+    <button class="btn-primary" id="previewBtn" type="button">Preview (dry run)</button>
+    <button class="btn-secondary" id="applyBtn" type="button">Apply &amp; Download</button>
+  </div>
+
+  <div id="captionReview" class="zone" style="display:none">
+    <div class="zone-label">Captions for new figures — review before applying</div>
+    <div class="zone-hint">These will be used as-is when you click "Apply &amp; Download". Edit any that don't read right.</div>
+    <div id="captionRows"></div>
+  </div>
+
+  <div id="results">
+    <div id="errorBox" class="error-box" style="display:none"></div>
+    <div id="summary"></div>
+    <div id="tables"></div>
+    <div id="downloads" class="download-row"></div>
+    <div id="log"></div>
+  </div>
+
+</main>
+
+<script>
+let docxFile = null;
+let imageFiles = [];
+
+function setZoneState(hintEl, text, filled) {
+  hintEl.textContent = text;
+  hintEl.classList.toggle('filled', filled);
+}
+
+// --- docx zone ---
+const docxZone = document.getElementById('docxZone');
+const docxHint = document.getElementById('docxHint');
+const docxInput = document.getElementById('docxInput');
+document.getElementById('docxBrowseBtn').onclick = () => docxInput.click();
+docxInput.onchange = () => { if (docxInput.files[0]) setDocxFile(docxInput.files[0]); };
+
+function setDocxFile(file) {
+  if (!file.name.toLowerCase().endsWith('.docx')) {
+    alert('Please choose a .docx file.');
+    return;
+  }
+  docxFile = file;
+  setZoneState(docxHint, file.name, true);
+  scanHeadings(file);
+}
+
+const headingSelect = document.getElementById('heading');
+
+async function scanHeadings(file) {
+  headingSelect.disabled = true;
+  headingSelect.innerHTML = '<option value="">Scanning report for sections…</option>';
+  try {
+    const fd = new FormData();
+    fd.append('docx', file);
+    const resp = await fetch('/api/headings', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!resp.ok) {
+      headingSelect.innerHTML = `<option value="">${data.error || 'Could not read that file'}</option>`;
+      return;
+    }
+    if (!data.headings.length) {
+      headingSelect.innerHTML = '<option value="">No headings found in this document</option>';
+      return;
+    }
+    headingSelect.innerHTML = '<option value="">Choose a section…</option>' +
+      data.headings.map(h => `<option value="${h.index}">${escapeHtml(h.text)} (${escapeHtml(h.style)})</option>`).join('');
+    headingSelect.disabled = false;
+  } catch (err) {
+    headingSelect.innerHTML = `<option value="">Scan failed: ${err}</option>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+['dragover', 'dragenter'].forEach(evt => docxZone.addEventListener(evt, e => {
+  e.preventDefault(); docxZone.classList.add('drag-over');
+}));
+['dragleave', 'drop'].forEach(evt => docxZone.addEventListener(evt, e => {
+  docxZone.classList.remove('drag-over');
+}));
+docxZone.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) setDocxFile(f);
+});
+
+// --- images zone ---
+const imagesZone = document.getElementById('imagesZone');
+const imagesHint = document.getElementById('imagesHint');
+const imagesInput = document.getElementById('imagesInput');
+document.getElementById('imagesBrowseBtn').onclick = () => imagesInput.click();
+imagesInput.onchange = () => {
+  const files = Array.from(imagesInput.files).filter(isImageFile);
+  if (files.length) setImageFiles(files);
+};
+
+const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp'];
+function isImageFile(file) {
+  const name = file.name.toLowerCase();
+  return IMAGE_EXT.some(ext => name.endsWith(ext));
+}
+
+function setImageFiles(files) {
+  imageFiles = files;
+  setZoneState(imagesHint, `${files.length} image file(s) selected`, true);
+}
+
+['dragover', 'dragenter'].forEach(evt => imagesZone.addEventListener(evt, e => {
+  e.preventDefault(); imagesZone.classList.add('drag-over');
+}));
+['dragleave', 'drop'].forEach(evt => imagesZone.addEventListener(evt, e => {
+  imagesZone.classList.remove('drag-over');
+}));
+imagesZone.addEventListener('drop', async e => {
+  e.preventDefault();
+  imagesZone.classList.remove('drag-over');
+  const items = e.dataTransfer.items;
+  let entry = null;
+  for (const item of items) {
+    const en = item.webkitGetAsEntry && item.webkitGetAsEntry();
+    if (en && en.isDirectory) { entry = en; break; }
+  }
+  if (entry) {
+    const files = await readTopLevelFiles(entry);
+    const imgs = files.filter(isImageFile);
+    if (imgs.length) setImageFiles(imgs);
+    else alert('No supported image files (jpg/jpeg/png/tif/bmp) found in that folder.');
+  } else {
+    // fallback: individual files dropped directly
+    const files = Array.from(e.dataTransfer.files).filter(isImageFile);
+    if (files.length) setImageFiles(files);
+    else alert('Please drop a folder of images (or image files).');
+  }
+});
+
+function readTopLevelFiles(dirEntry) {
+  return new Promise(resolve => {
+    const reader = dirEntry.createReader();
+    const all = [];
+    function readBatch() {
+      reader.readEntries(entries => {
+        if (!entries.length) { resolve(all); return; }
+        const pending = entries.filter(e => e.isFile);
+        let remaining = pending.length;
+        if (remaining === 0) { readBatch(); return; }
+        pending.forEach(e => e.file(f => {
+          all.push(f);
+          remaining -= 1;
+          if (remaining === 0) readBatch();
+        }));
+      });
+    }
+    readBatch();
+  });
+}
+
+// --- run ---
+const previewBtn = document.getElementById('previewBtn');
+const applyBtn = document.getElementById('applyBtn');
+const results = document.getElementById('results');
+const errorBox = document.getElementById('errorBox');
+const summaryEl = document.getElementById('summary');
+const tablesEl = document.getElementById('tables');
+const downloadsEl = document.getElementById('downloads');
+const logEl = document.getElementById('log');
+
+previewBtn.onclick = () => runRequest('/api/preview', false);
+applyBtn.onclick = () => runRequest('/api/apply', true);
+
+function buildFormData(isApply) {
+  const fd = new FormData();
+  fd.append('docx', docxFile);
+  imageFiles.forEach(f => fd.append('images', f, f.name));
+  fd.append('heading_index', headingSelect.value);
+  fd.append('prefix', document.getElementById('prefix').value || 'Figure');
+  fd.append('threshold', document.getElementById('threshold').value || '0.55');
+  fd.append('general_style', document.getElementById('generalStyle').value || '');
+  if (isApply) {
+    const overrides = collectCaptionOverrides();
+    if (overrides) fd.append('caption_overrides', JSON.stringify(overrides));
+  }
+  return fd;
+}
+
+function collectCaptionOverrides() {
+  const rows = document.querySelectorAll('#captionRows .caption-row');
+  if (!rows.length) return null;
+  const overrides = {};
+  rows.forEach(row => {
+    overrides[row.dataset.figureNumber] = row.querySelector('input').value;
+  });
+  return overrides;
+}
+
+const captionReview = document.getElementById('captionReview');
+const captionRows = document.getElementById('captionRows');
+
+function renderCaptionReview(insertions) {
+  if (!insertions.length) {
+    captionReview.style.display = 'none';
+    captionRows.innerHTML = '';
+    return;
+  }
+  captionRows.innerHTML = insertions.map(i => `
+    <div class="caption-row" data-figure-number="${i.figure_number}">
+      <span class="cap-file">${escapeHtml(i.file)} &rarr; Figure ${i.figure_number}</span>
+      <input type="text" value="${escapeHtml(i.suggested_caption)}">
+    </div>`).join('');
+  captionReview.style.display = 'block';
+}
+
+async function runRequest(url, isApply) {
+  if (!docxFile) { alert('Please choose a Word report first.'); return; }
+  if (!imageFiles.length) { alert('Please choose an images folder first.'); return; }
+  if (!headingSelect.value) { alert('Please choose which section of the report to update.'); return; }
+
+  previewBtn.disabled = true;
+  applyBtn.disabled = true;
+  const btn = isApply ? applyBtn : previewBtn;
+  const originalText = btn.textContent;
+  btn.textContent = 'Running…';
+
+  results.style.display = 'block';
+  errorBox.style.display = 'none';
+  summaryEl.innerHTML = '';
+  tablesEl.innerHTML = '';
+  downloadsEl.innerHTML = '';
+  logEl.textContent = '';
+
+  try {
+    const resp = await fetch(url, { method: 'POST', body: buildFormData(isApply) });
+    const data = await resp.json();
+    if (!resp.ok) {
+      errorBox.style.display = 'block';
+      errorBox.textContent = data.error || 'Something went wrong.';
+      return;
+    }
+    renderReport(data, isApply);
+  } catch (err) {
+    errorBox.style.display = 'block';
+    errorBox.textContent = 'Request failed: ' + err;
+  } finally {
+    previewBtn.disabled = false;
+    applyBtn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function renderReport(data, isApply) {
+  summaryEl.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-item"><span class="n">${data.replacements.length}</span>Replacements</div>
+      <div class="summary-item"><span class="n">${data.insertions.length}</span>Insertions</div>
+      <div class="summary-item"><span class="n">${data.unmatched_figures.length}</span>Unmatched</div>
+      <div class="summary-item"><span class="n">${data.conflicts.length}</span>Conflicts</div>
+    </div>`;
+
+  let html = '';
+  if (data.replacements.length) {
+    html += '<h3>Replacements</h3><table><tr><th>Figure</th><th>File</th><th>Score</th></tr>';
+    data.replacements.forEach(r => {
+      const badge = r.low_confidence ? ' <span class="badge badge-low">low confidence</span>' : '';
+      html += `<tr><td>${r.figure_number}</td><td>${r.file}${badge}</td><td>${r.score}</td></tr>`;
+    });
+    html += '</table>';
+  }
+  if (data.insertions.length) {
+    html += '<h3>Insertions (new figures)</h3><table><tr><th>Figure</th><th>File</th></tr>';
+    data.insertions.forEach(i => {
+      html += `<tr><td>${i.figure_number}</td><td>${i.file}</td></tr>`;
+    });
+    html += '</table>';
+    if (!isApply) html += '<div class="hint" style="margin-left:0">Captions for these are below — review before applying.</div>';
+  }
+  if (data.unmatched_figures.length) {
+    html += '<h3>Unmatched existing figures (left alone)</h3><table><tr><th>Figure</th><th>Caption</th></tr>';
+    data.unmatched_figures.forEach(u => {
+      html += `<tr><td>${u.figure_number}</td><td>${u.caption}</td></tr>`;
+    });
+    html += '</table>';
+  }
+  if (data.conflicts.length) {
+    html += '<h3>Conflicts (skipped — resolve manually)</h3><table><tr><th>Figure</th><th>Candidates</th></tr>';
+    data.conflicts.forEach(c => {
+      const cands = c.candidates.map(x => `${x.file} (${x.score})`).join(', ');
+      html += `<tr><td>${c.figure_number}</td><td>${cands}</td></tr>`;
+    });
+    html += '</table>';
+  }
+  tablesEl.innerHTML = html;
+
+  if (!isApply) {
+    renderCaptionReview(data.insertions);
+  } else {
+    captionReview.style.display = 'none';
+  }
+
+  if (isApply && data.download_docx) {
+    downloadsEl.innerHTML = `
+      <a class="btn-primary" style="text-decoration:none;display:inline-block" href="${data.download_docx}">Download updated .docx</a>
+      <a class="btn-secondary" style="text-decoration:none;display:inline-block" href="${data.download_report}">Download report.json</a>`;
+  } else if (!isApply) {
+    downloadsEl.innerHTML = `<div class="hint" style="margin-left:0">Looks right? Click "Apply &amp; Download" to write the changes.</div>`;
+  }
+
+  if (data.logs) logEl.textContent = data.logs.join('\n');
+}
+</script>
+</body>
+</html>
